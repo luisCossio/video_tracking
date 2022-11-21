@@ -1,0 +1,8 @@
+configuration_file: '/home/luis/2021/yolor/cfg/yolor_e6_ripeness.yaml'
+weigths: '/home/luis/2021/yolov4_concept_testing/yolore6_cherry_copy_ripeness_e115_trial2/last_map.pt'
+number_classes: 3
+shape: [1024,1024]
+device: 'cuda:0'
+threshold_conf: 0.3
+iou_thres: 0.6
+
