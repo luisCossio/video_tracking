@@ -2,7 +2,7 @@ import argparse
 
 import torch
 
-from utils.google_utils import attempt_download
+from utils_models.utils_yolo.google_utils import attempt_download
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()

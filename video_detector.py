@@ -8,8 +8,8 @@ import yaml
 
 from abc import ABCMeta, abstractmethod
 
-from models.yolo import Model
-from utils.torch_utils import intersect_dicts
+from models_resources.models_yolo.yolo import Model
+from utils_models.utils_yolo.torch_utils import intersect_dicts
 import video_utils as vu
 
 
@@ -367,61 +367,26 @@ class video_analizer:
             out.write(list_frames[i])
         out.release()
 
+
+
 def rescale(coordinates,shape):
     array_shape = np.flip(np.tile(np.array(shape), 2))
     coordinates = coordinates * array_shape
     return coordinates
-
-class folder_analizer:
-    def __init__(self, detector_object: detector, n_classes: int):
-        self.detector = detector_object
-        self.number_classes = n_classes
-
-    def analize_folder(self, path_folder: str, path_save_images='', ext='.JPG', configs=None):
-        images = os.listdir(path_folder)
-        images = [image for image in images if ext in image]
-        colors_classes = [(255, 0, 0), (255, 87, 51), (0, 255, 0)]
-        for i, image_name in enumerate(images):
-            img = cv2.imread(os.path.join(path_folder, image_name))
-            img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-            img = cut_image(img, configs['shape_img'], start=[0, 0])
-            predictions = self.detector.get_predictions(img)
-            predictions[:,:4] = rescale(predictions[:,:4],configs['shape_img'])
-            if path_save_images:
-                img_save = draw_image(img.copy(), predictions, colors=colors_classes,
-                                      number_classes=self.number_classes)
-                new_name = image_name.replace(ext, 'detections{:s}'.format(ext))
-                path_new_image = os.path.join(path_save_images, new_name)
-                cv2.imwrite(path_new_image, cv2.cvtColor(img_save, cv2.COLOR_BGR2RGB))
 
 
 def analize_video(path_original_video: str, path_to_save: str, parameters_model, parameters_video, opt):
     detector_yolo = yolor_detector(**parameters_model)
     analizer = video_analizer(detector_yolo, parameters_model['number_classes'], config_video=parameters_video)
 
-    # analizer.analize_video(path_original_video, path_to_save)
     analizer.build_video(path_original_video, path_to_save)
 
 
-def analize_folder(path_folder: str, path_to_save: str, parameters_model, opt):
-    """
-    Legacy function to analize and save the content of a folder.
 
-    :param path_folder:
-    :param path_to_save:
-    :param parameters_model:
-    :param opt:
-    :return:
-    """
-    detector_yolo = yolor_detector(**parameters_model)
-    analizer = folder_analizer(detector_yolo, parameters_model['number_classes'], )
-    if not os.path.isdir(path_to_save):
-        os.mkdir(path_to_save)
-    # analizer.analize_folder(path_folder, path_to_save, ext=opt.ext, configs=opt)
-    analizer.analize_folder(path_folder, path_to_save, ext=opt.ext, configs=opt)
 
 
 def main(opt):
+
     with open(opt.config_detector, errors='ignore') as f:
         parameters_model = yaml.safe_load(f)  # load hyps dict
 
@@ -451,9 +416,10 @@ if __name__ == '__main__':
     parser.add_argument('--ext', type=str, default='.png', help='extensions name')
     parser.add_argument('--rotate', action='store_true', help='Rotate cut if True.')
 
+
     parser.add_argument('--shape', nargs='+', type=int, default=[1024, 1024],
                         help='shape of images to extract from frame video ')
-    parser.add_argument('--split', nargs='+', type=int, default=[1024, 1024],
+    parser.add_argument('--split', nargs='+', type=int, default=[2, 1],
                         help='Way to split the image to not loss format')
 
     opt = parser.parse_args()

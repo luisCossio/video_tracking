@@ -7,9 +7,9 @@ import torch
 import torch.nn as nn
 from PIL import Image, ImageDraw
 
-from utils.datasets import letterbox
-from utils.general import non_max_suppression, make_divisible, scale_coords, xyxy2xywh
-from utils.plots import color_list
+from utils_models.utils_yolo.datasets import letterbox
+from utils_models.utils_yolo.general import non_max_suppression, make_divisible, scale_coords, xyxy2xywh
+from utils_models.utils_yolo.plots import color_list
 
 try:
     from pytorch_wavelets import DWTForward, DWTInverse

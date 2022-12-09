@@ -5,18 +5,17 @@ import sys
 from copy import deepcopy
 from pathlib import Path
 
-sys.path.append('./')  # to run '$ python *.py' files in subdirectories
+sys.path.append('/')  # to run '$ python *.py' files in subdirectories
 logger = logging.getLogger(__name__)
 
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 
-from models.common import Conv, Bottleneck, SPP, SPPCSP, VoVCSP, DWConv, Focus, BottleneckCSP, BottleneckCSPLG, BottleneckCSPSE, BottleneckCSPSAM, BottleneckCSPSEA, BottleneckCSPSAMA, BottleneckCSPSAMB, BottleneckCSPGC, BottleneckCSPDNL, BottleneckCSP2, BottleneckCSP2SAM, Concat, DownC, DownD, DNL, GC, SAM, SAMA, NMS, autoShape, TR, BottleneckCSPTR, BottleneckCSP2TR, SPPCSPTR, ReOrg, BottleneckCSPF, ImplicitA, ImplicitM, DWT
-from models.experimental import MixConv2d, CrossConv, C3
-from utils.autoanchor import check_anchor_order
-from utils.general import make_divisible, check_file, set_logging
-from utils.torch_utils import time_synchronized, fuse_conv_and_bn, model_info, scale_img, initialize_weights, \
+from models_resources.models_yolo.common import Conv, Bottleneck, SPP, SPPCSP, VoVCSP, DWConv, Focus, BottleneckCSP, BottleneckCSPLG, BottleneckCSPSE, BottleneckCSPSAM, BottleneckCSPSEA, BottleneckCSPSAMA, BottleneckCSPSAMB, BottleneckCSPGC, BottleneckCSPDNL, BottleneckCSP2, BottleneckCSP2SAM, Concat, DownC, DownD, DNL, GC, SAM, SAMA, NMS, autoShape, TR, BottleneckCSPTR, BottleneckCSP2TR, SPPCSPTR, ReOrg, BottleneckCSPF, ImplicitA, ImplicitM, DWT
+from models_resources.models_yolo.experimental import MixConv2d, CrossConv, C3
+from utils_models.utils_yolo.autoanchor import check_anchor_order
+from utils_models.utils_yolo.general import make_divisible, check_file, set_logging
+from utils_models.utils_yolo.torch_utils import time_synchronized, fuse_conv_and_bn, model_info, scale_img, initialize_weights, \
     select_device, copy_attr
 
 try:

@@ -4,8 +4,8 @@ import numpy as np
 import torch
 import torch.nn as nn
 
-from models.common import Conv, DWConv
-from utils.google_utils import attempt_download
+from models_resources.models_yolo.common import Conv, DWConv
+from utils_models.utils_yolo.google_utils import attempt_download
 
 
 class CrossConv(nn.Module):
