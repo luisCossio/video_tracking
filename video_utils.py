@@ -88,6 +88,7 @@ class frame_extractor:
 
         return frame
 
+
     def cut_image(self, frame: np.ndarray):
         """
         Cut image in order to fit (if possible) desired dimensions. Returned cropped image.
@@ -142,3 +143,84 @@ class frame_extractor:
             self.count += 1
             frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             return self.image_tranformation(frame)
+
+
+def get_cuts(image, shape, splits):
+    cuts = []
+    cut_locations = []
+    image_shape = np.array(image.shape[:2], dtype=np.int16)
+    splits_arr = np.array(splits)
+    splits_arr[splits_arr<2] = 2
+    distances = ((image_shape - np.array(shape)) / (splits_arr - 1)).astype(np.int16)
+
+    for i in range(splits[0]):
+        start_y = distances[0] * i
+        cuts += [[]]
+        cut_locations += [[]]
+        for j in range(splits[1]):
+            cut = [start_y, distances[1] * j]
+            cut_img = cut_image(image, shape, cut)
+            cuts[-1] += [cut_img]
+            cut_locations[-1] += [cut]
+
+    return cuts, cut_locations
+
+def cut_image(img: np.ndarray, shape_cut: list, start: list):
+    """
+    Function to get a cut from an image, based on the shape and starting location.
+    :param img: image array
+    :param shape_cut: List or array of length 2 for y and x dimensions of cut
+    :param start: List or array of length 2 for y and x starting position
+    :return:
+    """
+
+    end = [start[0] + shape_cut[0], start[1] + shape_cut[1]]
+    return img[start[0]:end[0], start[1]:end[1]]
+
+
+
+def draw_image(image:np.ndarray, predictions:np.ndarray, colors:list, number_classes=1, thickness=2):
+    """
+    Function to draw a rectangle in a given image
+    :param image: numpy array / image
+    :param predictions: matrix of predictions array as (x1,y1,x2,y2,confidence,class)
+    :param colors: list of colors to paint each class
+    :param number_classes: number of classes found in class column
+    :param thickness: thickness of rectangles.
+    :return:
+    """
+    if len(predictions) == 0:
+        return image
+    predictions = predictions.reshape([-1, 6])
+    valid_cat = [i for i in range(number_classes)]
+    for predicted_object in predictions:
+        class_predicted = int(predicted_object[5])
+        if class_predicted in valid_cat:
+            start_point = (round(predicted_object[0]), round(predicted_object[1]))
+            end_point = (round((predicted_object[2])), round((predicted_object[3])))
+            image = cv2.rectangle(image, start_point, end_point, colors[class_predicted], thickness)
+    return image
+
+def draw_image_from_predictions(image:np.ndarray, predictions:np.ndarray, classes_predicted,colors:list,
+                                number_classes=1, thickness=2):
+    """
+    Function to draw a rectangle in a given image
+    :param image: numpy array / image
+    :param predictions: matrix of predictions array as (x1,y1,x2,y2)
+    :param colors: list of colors to paint each class
+    :param number_classes: number of classes found in class column
+    :param thickness: thickness of rectangles.
+    :return:
+    """
+    if len(predictions) == 0:
+        return image
+    predictions = predictions.reshape([-1, 4])
+    valid_cat = [i for i in range(number_classes)]
+    for i,predicted_object in enumerate(predictions):
+        class_predicted = int(classes_predicted[i])
+        if class_predicted in valid_cat:
+            start_point = (round(predicted_object[0]), round(predicted_object[1]))
+            end_point = (round((predicted_object[2])), round((predicted_object[3])))
+            image = cv2.rectangle(image, start_point, end_point, colors[class_predicted], thickness)
+    return image
+

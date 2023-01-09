@@ -1,3 +1,17 @@
-shape_img: [1328,1328]
+# image config
+shape_img: [720,720]
 split: [2,1]
 rotate: True
+
+# classes config
+n_classes: 3
+color_classes: [[255, 0, 0], [255, 87, 51], [0, 255, 0]] # colors per class
+
+# tracking data
+skip_rate: 2 # for skipping frames
+speed_weight: 0.1 # exponential weight for EMA of speed
+thr_iou: 0.2 # iou threshold for association
+min_detections: 4
+initial_speed: [-0.5,0.0,-0.5,0.0]
+variance_model: 1
+variance_observation: 1

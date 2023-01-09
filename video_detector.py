@@ -6,7 +6,8 @@ import torch
 import time
 import yaml
 
-from abc import ABCMeta, abstractmethod
+# from abc import ABCMeta, abstractmethod
+from typing import Protocol
 
 from models_resources.models_yolo.yolo import Model
 from utils_models.utils_yolo.torch_utils import intersect_dicts
@@ -21,6 +22,8 @@ def xywh2xyxy(x):
     y[:, 2] = x[:, 0] + x[:, 2] / 2  # bottom right x
     y[:, 3] = x[:, 1] + x[:, 3] / 2  # bottom right y
     return y
+
+
 
 
 def letterbox(img, new_shape=(640, 640), color=(114, 114, 114), auto=True, scaleFill=False, scaleup=True, auto_size=32):
@@ -158,20 +161,26 @@ def non_max_suppression(prediction, conf_thres=0.1, iou_thres=0.6, merge=False, 
     return output
 
 
-class detector(metaclass=ABCMeta):
-    @abstractmethod
+# class detector(metaclass=ABCMeta):
+#     @abstractmethod
+#     def get_predictions(self):
+#         """
+#         Returns a normalize prediction in the form of a numpy array with colums (x1,y1,x2,y2,conf,class)
+#         :return:
+#         """
+#         pass
+
+class detector(Protocol):
     def get_predictions(self):
         """
         Returns a normalize prediction in the form of a numpy array with colums (x1,y1,x2,y2,conf,class)
         :return:
         """
-        pass
+        ...
 
-
-class yolor_detector(detector):
-    def __init__(self, configuration_file, weigths, number_classes, shape=[1024, 1024], device='cuda:0',
-                 threshold_conf=0.3,
-                 iou_thres=0.6, merge=True):
+class yolor_detector:
+    def __init__(self, configuration_file:str, weigths:str, number_classes:int, shape=[1024, 1024], device='cuda:0',
+                 threshold_conf=0.3, iou_thres=0.6, merge=True):
         self.threshold = threshold_conf
         self.iou_thres = iou_thres
         self.merge = merge
@@ -222,53 +231,36 @@ class yolor_detector(detector):
         # return output
 
 
-def draw_image(image, predictions, colors, number_classes=1, thickness=2):
-    if len(predictions) == 0:
-        return image
-    predictions = predictions.reshape([-1, 6])
-    valid_cat = [i for i in range(number_classes)]
-    for predicted_object in predictions:
-        class_predicted = int(predicted_object[5])
-        if class_predicted in valid_cat:
-            start_point = (round(predicted_object[0]), round(predicted_object[1]))
-            end_point = (round((predicted_object[2])), round((predicted_object[3])))
-            image = cv2.rectangle(image, start_point, end_point, colors[class_predicted], thickness)
+class analizer(Protocol):
+    def get_next_frame_prediction(self):
+        """
+        Method to return next prediction and frame
+        :return:
+        """
+        ...
 
-    return image
+    def get_next_prediction(self) -> np.ndarray:
+        """
+        Method to get next prediction
 
-
-def cut_image(img: np.ndarray, shape_cut: list, start: list):
-    """
-    Function to get a cut from an image, based on the shape and starting location.
-    :param img: image array
-    :param shape_cut: List or array of length 2 for y and x dimensions of cut
-    :param start: List or array of length 2 for y and x starting position
-    :return:
-    """
-
-    end = [start[0] + shape_cut[0], start[1] + shape_cut[1]]
-    return img[start[0]:end[0], start[1]:end[1]]
+        :return: prediction
+        """
+        ...
 
 
-def get_cuts(image, shape, splits):
-    cuts = []
-    cut_locations = []
-    image_shape = np.array(image.shape[:2], dtype=np.int16)
-    splits_arr = np.array(splits)
-    splits_arr[splits_arr<2] = 2
-    distances = ((image_shape - np.array(shape)) / (splits_arr - 1)).astype(np.int16)
+    def start_video_predictions(self, file_path:str) -> None:
+        """
+        Method to signal start extracting predictions from file
+        :param file_path: path to file
+        :return: None
+        """
+        ...
 
-    for i in range(splits[0]):
-        start_y = distances[0] * i
-        cuts += [[]]
-        cut_locations += [[]]
-        for j in range(splits[1]):
-            cut = [start_y, distances[1] * j]
-            cut_img = cut_image(image, shape, cut)
-            cuts[-1] += [cut_img]
-            cut_locations[-1] += [cut]
-
-    return cuts, cut_locations
+    def is_not_over(self) -> bool:
+        """
+        :return: Return True if no more frames are available
+        """
+        ...
 
 
 class video_analizer:
@@ -276,8 +268,11 @@ class video_analizer:
         self.detector = detector_object
         self.number_classes = n_classes
         self.config_video = config_video
+        self.count = 0
+        self.skip_rate = config_video['skip_rate']
+        self.video_not_over = False
 
-    def analize_video(self, path_video: str, path_save_images='',ext = '.JPG'):
+    def analize_video_frame(self, path_video: str, path_save_images='', ext ='.JPG'):
         """
         Generate images from video frames with the drawn locations of each object identified.
 
@@ -290,11 +285,11 @@ class video_analizer:
 
         records = vu.frame_extractor(path_video, rotate=self.config_video['rotate'])
         records.start()
-        colors_classes = [(255, 0, 0), (255, 87, 51), (0, 255, 0)]
+        colors_classes = self.config_video['color_classes']
         count = 0
         while True:
             frame = records.get_next()
-            frame = cut_image(frame, size=self.config_video['shape_img'], start=[0, 0])
+            frame = vu.cut_image(frame, size=self.config_video['shape_img'], start=[0, 0])
             if frame is None:
                 break
             # print("shape frame: ", frame.shape)
@@ -303,13 +298,48 @@ class video_analizer:
             image_name = 'f{:d}{:s}'.format(count, ext)
 
             if path_save_images and count % 5 == 0:
-                img_save = draw_image(frame.copy(), predictions, colors=colors_classes,
+                img_save = vu.draw_image(frame.copy(), predictions, colors=colors_classes,
                                       number_classes=self.number_classes)
                 path_new_image = os.path.join(path_save_images, image_name)
                 cv2.imwrite(path_new_image, cv2.cvtColor(img_save, cv2.COLOR_BGR2RGB))
             count += 1
 
-    def build_video(self, path_video: str, path_save_video=''):
+    def get_next_prediction(self)->np.ndarray:
+        """
+        Method to get predictions from the current frame in the recording
+        :return: predictions
+        """
+        frame = self.get_next_frame()
+        if frame is None:
+            self.video_not_over = False
+        else:
+            predictions = self.split_image_and_detect(frame, self.config_video['shape_img'], self.config_video['split'])
+            for i in range(self.skip_rate - 1):
+                _ = self.get_next_frame()
+            if _ is None:
+                self.video_not_over = False
+            return predictions
+        return None
+
+    def get_next_frame_prediction(self):
+        """
+        Method to return a prediction and its frame.
+
+        :return:
+        """
+        frame = self.get_next_frame()
+        if frame is None:
+            self.video_not_over = False
+        else:
+            predictions = self.split_image_and_detect(frame, self.config_video['shape_img'], self.config_video['split'])
+            for i in range(self.skip_rate - 1):
+                _ = self.get_next_frame()
+            if _ is None:
+                self.video_not_over = False
+            return frame, predictions
+        return None, None
+
+    def build_video(self, path_video: str, path_save_video='',frame_rate=30):
         """
         Function to create videos from the frames and predictions generated from the detector.
 
@@ -321,35 +351,20 @@ class video_analizer:
         """
         records = vu.frame_extractor(path_video, rotate=self.config_video['rotate'])
         records.start()
-        colors_classes = [(255, 0, 0), (255, 87, 51), (0, 255, 0)]
+        colors_classes = self.config_video['color_classes']
         count = 0
         list_frames = []
         splits = self.config_video['split']
-        shape =  self.config_video['shape_img']
+        shape = self.config_video['shape_img']
 
         while True:
             frame = records.get_next()
             if frame is None:
                 break
 
-            predictions = []
-            if count % 2 == 0:  # for 30 fps
-                cuts, locations = get_cuts(frame, shape, splits)
-                for i in range(splits[0]):
-                    # increase_height = locations[i][0]
-                    for j in range(splits[1]):
-                        increase_height = locations[i][j][0]
-                        increase_width = locations[i][j][1]
-                        predictions_cut = self.detector.get_predictions(cuts[i][j])
-                        if len(predictions_cut) > 0:
-                            predictions_cut[:, :4] = rescale(predictions_cut[:, :4], shape)
-                            increase = np.tile(np.array([increase_width,increase_height]),2)
-                            predictions_cut[:,:4] += increase
-                            predictions += [predictions_cut]
-                if len(predictions) > 0:
-                    predictions = np.concatenate(predictions, axis=0)
-                    # predictions[:, :4] = rescale(predictions[:, :4], self.config_video['shape_img'])
-                img_save = draw_image(frame.copy(), predictions, colors=colors_classes,
+            if count % self.skip_rate == 0:  # for 30 fps
+                predictions = self.split_image_and_detect(frame, shape, splits)
+                img_save = vu.draw_image(frame.copy(), predictions, colors=colors_classes,
                                       number_classes=self.number_classes)
                 list_frames += [cv2.cvtColor(img_save, cv2.COLOR_BGR2RGB)]
             count += 1
@@ -367,7 +382,56 @@ class video_analizer:
             out.write(list_frames[i])
         out.release()
 
+    def split_image_and_detect(self, frame, shape, splits) -> np.ndarray:
+        predictions = []
+        cuts, locations = vu.get_cuts(frame, shape, splits)
+        for i in range(splits[0]):
+            # increase_height = locations[i][0]
+            for j in range(splits[1]):
+                increase_height = locations[i][j][0]
+                increase_width = locations[i][j][1]
+                predictions_cut = self.detector.get_predictions(cuts[i][j])
+                if len(predictions_cut) > 0:
+                    predictions_cut[:, :4] = rescale(predictions_cut[:, :4], shape)
+                    increase = np.tile(np.array([increase_width, increase_height]), 2)
+                    predictions_cut[:, :4] += increase
+                    predictions += [predictions_cut]
+        if len(predictions) > 0:
+            predictions = np.concatenate(predictions, axis=0)
+            # predictions[:, :4] = rescale(predictions[:, :4], self.config_video['shape_img'])
+        else:
+            predictions = np.empty([0,6])
+        return predictions
 
+    def start_video_predictions(self, path_video):
+        """
+        Method to signal start extracting predictions from a video frame
+
+        :return:
+        """
+        self.video_not_over = True
+        self.records = vu.frame_extractor(path_video, rotate=self.config_video['rotate'])
+        self.records.start()
+
+    def is_not_over(self):
+        return self.video_not_over
+
+    def get_next_frame(self):
+        """
+        Method for iterative extraction of the predictions.
+        :return:
+        """
+        if self.video_not_over:
+            frame = self.records.get_next()
+            while self.count % self.skip_rate != 0:
+                frame = self.records.get_next()
+                self.count += 1
+
+                if frame is None:
+                    self.video_not_over = False
+                    break
+            return frame
+        return None
 
 def rescale(coordinates,shape):
     array_shape = np.flip(np.tile(np.array(shape), 2))
@@ -378,10 +442,7 @@ def rescale(coordinates,shape):
 def analize_video(path_original_video: str, path_to_save: str, parameters_model, parameters_video, opt):
     detector_yolo = yolor_detector(**parameters_model)
     analizer = video_analizer(detector_yolo, parameters_model['number_classes'], config_video=parameters_video)
-
-    analizer.build_video(path_original_video, path_to_save)
-
-
+    analizer.build_video(path_original_video, path_to_save,opt.frame_rate)
 
 
 
@@ -421,22 +482,27 @@ if __name__ == '__main__':
                         help='shape of images to extract from frame video ')
     parser.add_argument('--split', nargs='+', type=int, default=[2, 1],
                         help='Way to split the image to not loss format')
-
+    parser.add_argument('--frame-rate', type=int, default=30, help='extensions name')
     opt = parser.parse_args()
     np.random.seed(60006)
 
     # opt.path_video = '/home/luis/2022/cherry_2022/experiments/visit3/hilera88_arbol47'
-    path_videos = '/home/luis/2022/cherry_2022/visita6_15_11_2022/videos/la_torre'
+    path_videos = '/home/luis/2022/cherry_2022/visita7_18_11_22/videos/'
     name_videos = [name for name in sorted(os.listdir(path_videos))]
-    name_vid = name_videos[2]
+    name_vid = name_videos[3]
+    print(name_vid)
     opt.path_video = os.path.join(path_videos, name_vid)
 
     opt.config_detector = 'data/config_yolor.yaml'
     opt.config_video = 'data/processing.yaml'
-    opt.path_to_save = os.path.join('/home/luis/2022/cherry_2022/experiments/visit6',name_vid.replace('.MOV','.avi'))
+    path_save_vid = '/home/luis/2022/cherry_2022/experiments/visit9'
+    if not os.path.isdir(path_save_vid):
+        os.mkdir(path_save_vid)
+    opt.path_to_save = os.path.join(path_save_vid, name_vid.replace('.MOV','.avi'))
     opt.rotate = True
     opt.shape = [720, 720]
     opt.split = [2, 1]
+    opt.frame_rate = 10
     # opt.path_to_save = opt.path_video + '_2'
     # opt.ext = '.JPG'
     main(opt)
